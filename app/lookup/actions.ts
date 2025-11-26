@@ -1,6 +1,6 @@
 "use server";
 
-import { getSalespersonRecords, getSalespersonInfo, SalespersonRecord, SalespersonInfo } from "@/lib/data";
+import { getSalespersonRecordsByRegNum, getSalespersonInfo, SalespersonRecord, SalespersonInfo } from "@/lib/data";
 
 export interface SalespersonData {
   records: SalespersonRecord[];
@@ -10,12 +10,11 @@ export interface SalespersonData {
 export async function fetchSalespersonRecords(
   regNum: string
 ): Promise<SalespersonData | null> {
-  const [allRecords, allInfo] = await Promise.all([
-    getSalespersonRecords(),
+  const [records, allInfo] = await Promise.all([
+    getSalespersonRecordsByRegNum(regNum),
     getSalespersonInfo()
   ]);
   
-  const records = allRecords[regNum];
   if (!records) return null;
   
   return {

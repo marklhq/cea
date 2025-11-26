@@ -1,3 +1,5 @@
+export const dynamic = 'force-dynamic';
+
 import { LeaderboardClient } from "@/components/leaderboard-client";
 import {
   getSalespersonMonthly,

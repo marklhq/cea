@@ -1,3 +1,5 @@
+export const dynamic = 'force-dynamic';
+
 import { LookupClient } from "@/components/lookup-client";
 import { getSalespersonMonthly } from "@/lib/data";
 import { fetchSalespersonRecords } from "./actions";

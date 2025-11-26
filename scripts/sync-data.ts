@@ -337,11 +337,40 @@ async function saveData(data: {
   );
   console.log("  ✓ property_type_by_year.json");
   
+  // Split salesperson_records into chunks by first 3 characters of reg_num
+  // This ensures each chunk is under GitHub's 100MB limit
+  const recordsDir = path.join(dataDir, "records");
+  await fs.mkdir(recordsDir, { recursive: true });
+  
+  const recordsByPrefix: { [prefix: string]: { [regNum: string]: SalespersonRecord[] } } = {};
+  
+  for (const [regNum, records] of Object.entries(data.salespersonRecords)) {
+    // Use first 3 chars as prefix (e.g., R00, R01, R02, etc.)
+    const prefix = regNum.substring(0, 3).toUpperCase() || "___";
+    if (!recordsByPrefix[prefix]) {
+      recordsByPrefix[prefix] = {};
+    }
+    recordsByPrefix[prefix][regNum] = records;
+  }
+  
+  // Save each chunk
+  const prefixes: string[] = [];
+  for (const [prefix, records] of Object.entries(recordsByPrefix)) {
+    prefixes.push(prefix);
+    await fs.writeFile(
+      path.join(recordsDir, `${prefix}.json`),
+      JSON.stringify(records)
+    );
+    const size = JSON.stringify(records).length;
+    console.log(`  ✓ records/${prefix}.json (${Object.keys(records).length} salespersons, ${(size / 1024 / 1024).toFixed(1)}MB)`);
+  }
+  
+  // Save index of available prefixes
   await fs.writeFile(
-    path.join(dataDir, "salesperson_records.json"),
-    JSON.stringify(data.salespersonRecords)
+    path.join(recordsDir, "index.json"),
+    JSON.stringify({ prefixes: prefixes.sort() }, null, 2)
   );
-  console.log("  ✓ salesperson_records.json");
+  console.log("  ✓ records/index.json");
   
   await fs.writeFile(
     path.join(dataDir, "salesperson_info.json"),

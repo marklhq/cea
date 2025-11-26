@@ -1,3 +1,5 @@
+export const dynamic = 'force-dynamic';
+
 import { StatsCards } from "@/components/stats-cards";
 import { TransactionsChart } from "@/components/charts/transactions-chart";
 import { SalespersonsChart } from "@/components/charts/salespersons-chart";
