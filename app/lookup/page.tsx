@@ -4,8 +4,15 @@ import { LookupClient } from "@/components/lookup-client";
 import { getSalespersonIndex } from "@/lib/data";
 import { fetchSalespersonRecords } from "./actions";
 
-export default async function LookupPage() {
-  const salespersonIndex = await getSalespersonIndex();
+interface LookupPageProps {
+  searchParams: Promise<{ reg_num?: string }>;
+}
+
+export default async function LookupPage({ searchParams }: LookupPageProps) {
+  const [salespersonIndex, params] = await Promise.all([
+    getSalespersonIndex(),
+    searchParams,
+  ]);
 
   return (
     <div className="space-y-8">
@@ -21,6 +28,7 @@ export default async function LookupPage() {
       <LookupClient
         salespersonIndex={salespersonIndex}
         getSalespersonData={fetchSalespersonRecords}
+        initialRegNum={params.reg_num}
       />
     </div>
   );

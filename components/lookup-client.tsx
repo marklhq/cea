@@ -74,6 +74,7 @@ interface SalespersonSummary {
 interface LookupClientProps {
   salespersonIndex: { name: string; reg_num: string }[];
   getSalespersonData: (regNum: string) => Promise<SalespersonData | null>;
+  initialRegNum?: string;
 }
 
 const ITEMS_PER_PAGE = 20;
@@ -182,7 +183,7 @@ function formatDate(dateStr: string): string {
   }
 }
 
-export function LookupClient({ salespersonIndex, getSalespersonData }: LookupClientProps) {
+export function LookupClient({ salespersonIndex, getSalespersonData, initialRegNum }: LookupClientProps) {
   const [searchQuery, setSearchQuery] = React.useState("");
   const [selectedSalesperson, setSelectedSalesperson] = React.useState<SalespersonSummary | null>(null);
   const [isLoading, setIsLoading] = React.useState(false);
@@ -190,6 +191,42 @@ export function LookupClient({ salespersonIndex, getSalespersonData }: LookupCli
   const [suggestions, setSuggestions] = React.useState<{ name: string; reg_num: string }[]>([]);
   const [showSuggestions, setShowSuggestions] = React.useState(false);
   const [highlightedIndex, setHighlightedIndex] = React.useState(0);
+  const initialFetchRef = React.useRef(false);
+
+  // Auto-fetch if initialRegNum is provided (e.g., from URL query param)
+  React.useEffect(() => {
+    if (initialRegNum && !initialFetchRef.current) {
+      initialFetchRef.current = true;
+      const salesperson = salespersonIndex.find((sp) => sp.reg_num === initialRegNum);
+      if (salesperson) {
+        // Inline fetch to avoid dependency on handleSelectSalesperson
+        setIsLoading(true);
+        setSearchQuery(`${salesperson.name} (${salesperson.reg_num})`);
+        
+        getSalespersonData(salesperson.reg_num)
+          .then((data) => {
+            if (data) {
+              const sortedRecords = [...data.records].sort(
+                (a, b) => parseDateForSort(b.transaction_date).localeCompare(parseDateForSort(a.transaction_date))
+              );
+              setSelectedSalesperson({
+                name: salesperson.name,
+                reg_num: salesperson.reg_num,
+                records: sortedRecords,
+                info: data.info,
+              });
+              setCurrentPage(1);
+            }
+          })
+          .catch((error) => {
+            console.error("Error fetching salesperson data:", error);
+          })
+          .finally(() => {
+            setIsLoading(false);
+          });
+      }
+    }
+  }, [initialRegNum, salespersonIndex, getSalespersonData]);
 
   // Reset highlighted index when suggestions change
   React.useEffect(() => {
