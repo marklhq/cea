@@ -1,23 +1,19 @@
 export const dynamic = 'force-dynamic';
 
 import { LeaderboardClient } from "@/components/leaderboard-client";
-import {
-  getSalespersonMonthly,
-  getAvailableDateRange,
-} from "@/lib/data";
+import { getSalespersonTotals, getAvailableYears } from "@/lib/data";
+import { fetchLeaderboardByDateRange } from "./actions";
 
 export default async function LeaderboardPage() {
-  const salespersons = await getSalespersonMonthly();
-  const { minDate, maxDate } = getAvailableDateRange(salespersons);
+  // Fetch pre-aggregated totals (fast - single query)
+  const [totals, years] = await Promise.all([
+    getSalespersonTotals(100),
+    getAvailableYears(),
+  ]);
 
-  // Get unique years from data
-  const years = new Set<string>();
-  for (const sp of salespersons) {
-    for (const monthYear of Object.keys(sp.monthly)) {
-      years.add(monthYear.split("-")[0]);
-    }
-  }
-  const availableYears = Array.from(years).sort();
+  // Default date range is all available years
+  const minDate = `${years[0]}-01`;
+  const maxDate = `${years[years.length - 1]}-12`;
 
   return (
     <div className="space-y-8">
@@ -31,10 +27,11 @@ export default async function LeaderboardPage() {
       </div>
 
       <LeaderboardClient
-        salespersons={salespersons}
-        availableYears={availableYears}
+        initialData={totals}
+        availableYears={years}
         defaultStartDate={minDate}
         defaultEndDate={maxDate}
+        fetchLeaderboard={fetchLeaderboardByDateRange}
       />
     </div>
   );

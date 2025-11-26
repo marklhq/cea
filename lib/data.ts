@@ -268,3 +268,85 @@ export async function getSalespersonIndex(): Promise<SalespersonIndexItem[]> {
     reg_num: row.reg_num,
   }));
 }
+
+// Pre-aggregated leaderboard totals for fast loading
+export interface SalespersonTotal {
+  name: string;
+  reg_num: string;
+  total_transactions: number;
+}
+
+export async function getSalespersonTotals(limit: number = 100): Promise<SalespersonTotal[]> {
+  const client = checkSupabase();
+  const { data, error } = await client
+    .from('salesperson_totals')
+    .select('*')
+    .order('total_transactions', { ascending: false })
+    .limit(limit);
+
+  if (error) throw error;
+  return data.map((row) => ({
+    name: row.name,
+    reg_num: row.reg_num,
+    total_transactions: row.total_transactions,
+  }));
+}
+
+// Get leaderboard for a specific date range (calculated server-side)
+export async function getLeaderboardByDateRange(
+  startDate: string, // "2024-01" format
+  endDate: string,   // "2024-12" format
+  limit: number = 100
+): Promise<SalespersonTotal[]> {
+  const client = checkSupabase();
+  
+  const { data, error } = await client
+    .rpc('get_leaderboard_by_date_range', {
+      start_date: startDate,
+      end_date: endDate,
+      result_limit: limit
+    });
+
+  if (error) {
+    // Fallback if RPC doesn't exist yet - use direct query
+    const { data: fallbackData, error: fallbackError } = await client
+      .from('salesperson_monthly')
+      .select('reg_num, name, count')
+      .gte('month_year', startDate)
+      .lte('month_year', endDate);
+    
+    if (fallbackError) throw fallbackError;
+    
+    // Aggregate in JS
+    const totals: { [key: string]: { name: string; total: number } } = {};
+    for (const row of fallbackData || []) {
+      if (!totals[row.reg_num]) {
+        totals[row.reg_num] = { name: row.name, total: 0 };
+      }
+      totals[row.reg_num].total += row.count;
+    }
+    
+    return Object.entries(totals)
+      .map(([reg_num, data]) => ({
+        reg_num,
+        name: data.name,
+        total_transactions: data.total,
+      }))
+      .sort((a, b) => b.total_transactions - a.total_transactions)
+      .slice(0, limit);
+  }
+  
+  return data;
+}
+
+// Get available years from metadata
+export async function getAvailableYears(): Promise<string[]> {
+  const client = checkSupabase();
+  const { data, error } = await client
+    .from('transactions_by_year')
+    .select('year')
+    .order('year');
+
+  if (error) throw error;
+  return data.map((row) => row.year);
+}
