@@ -132,17 +132,34 @@ export async function getPropertyTypeByYear(): Promise<TypeBreakdownByYear> {
 
 export async function getSalespersonMonthly(): Promise<SalespersonMonthly[]> {
   const client = checkSupabase();
-  // Get aggregated data grouped by salesperson
-  const { data, error } = await client
-    .from('salesperson_monthly')
-    .select('*');
+  
+  // Fetch all rows with pagination (Supabase default limit is 1000)
+  const allData: { reg_num: string; name: string; month_year: string; count: number }[] = [];
+  const pageSize = 1000;
+  let page = 0;
+  let hasMore = true;
+  
+  while (hasMore) {
+    const { data, error } = await client
+      .from('salesperson_monthly')
+      .select('*')
+      .range(page * pageSize, (page + 1) * pageSize - 1);
 
-  if (error) throw error;
+    if (error) throw error;
+    
+    if (data && data.length > 0) {
+      allData.push(...data);
+      hasMore = data.length === pageSize;
+      page++;
+    } else {
+      hasMore = false;
+    }
+  }
 
   // Group by reg_num
   const grouped: { [regNum: string]: { name: string; monthly: { [monthYear: string]: number } } } = {};
   
-  for (const row of data) {
+  for (const row of allData) {
     if (!grouped[row.reg_num]) {
       grouped[row.reg_num] = { name: row.name, monthly: {} };
     }
@@ -231,4 +248,23 @@ export function getAvailableDateRange(salespersons: SalespersonMonthly[]): {
   }
 
   return { minDate, maxDate };
+}
+
+// Lightweight salesperson index for search dropdown
+export interface SalespersonIndexItem {
+  name: string;
+  reg_num: string;
+}
+
+export async function getSalespersonIndex(): Promise<SalespersonIndexItem[]> {
+  const client = checkSupabase();
+  const { data, error } = await client
+    .from('salesperson_index')
+    .select('*');
+
+  if (error) throw error;
+  return data.map((row) => ({
+    name: row.name,
+    reg_num: row.reg_num,
+  }));
 }

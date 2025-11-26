@@ -265,11 +265,14 @@ async function main() {
   console.log('Starting Supabase data upload...\n');
 
   try {
-    await uploadMetadata();
-    await uploadTransactionsByYear();
-    await uploadSalespersonsByYear();
-    await uploadTransactionTypeByYear();
-    await uploadPropertyTypeByYear();
+    // Small tables already uploaded via MCP, skip them
+    // await uploadMetadata();
+    // await uploadTransactionsByYear();
+    // await uploadSalespersonsByYear();
+    // await uploadTransactionTypeByYear();
+    // await uploadPropertyTypeByYear();
+    
+    // Upload large files only
     await uploadSalespersonInfo();
     await uploadSalespersonMonthly();
     await uploadSalespersonRecords();

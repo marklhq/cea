@@ -1,17 +1,11 @@
 export const dynamic = 'force-dynamic';
 
 import { LookupClient } from "@/components/lookup-client";
-import { getSalespersonMonthly } from "@/lib/data";
+import { getSalespersonIndex } from "@/lib/data";
 import { fetchSalespersonRecords } from "./actions";
 
 export default async function LookupPage() {
-  const salespersons = await getSalespersonMonthly();
-
-  // Create a lightweight index for search (name + reg_num only)
-  const salespersonIndex = salespersons.map((sp) => ({
-    name: sp.name,
-    reg_num: sp.reg_num,
-  }));
+  const salespersonIndex = await getSalespersonIndex();
 
   return (
     <div className="space-y-8">
