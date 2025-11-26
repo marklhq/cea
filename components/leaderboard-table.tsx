@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   Table,
   TableBody,
@@ -31,6 +31,7 @@ type SortDirection = "asc" | "desc";
 const ITEMS_PER_PAGE = 25;
 
 export function LeaderboardTable({ data, dateRange }: LeaderboardTableProps) {
+  const router = useRouter();
   const [sortField, setSortField] = React.useState<SortField>("transactions");
   const [sortDirection, setSortDirection] = React.useState<SortDirection>("desc");
   const [currentPage, setCurrentPage] = React.useState(1);
@@ -136,23 +137,21 @@ export function LeaderboardTable({ data, dateRange }: LeaderboardTableProps) {
                 <TableRow 
                   key={entry.reg_num} 
                   className="cursor-pointer hover:bg-accent/50 transition-colors"
-                  asChild
+                  onClick={() => router.push(`/lookup?reg_num=${encodeURIComponent(entry.reg_num)}`)}
                 >
-                  <Link href={`/lookup?reg_num=${encodeURIComponent(entry.reg_num)}`}>
-                    <TableCell className="font-medium">
-                      <div className="flex items-center gap-2">
-                        {getRankIcon(entry.rank)}
-                        <span className="font-mono">{entry.rank}</span>
-                      </div>
-                    </TableCell>
-                    <TableCell className="font-medium">{entry.name}</TableCell>
-                    <TableCell className="text-muted-foreground font-mono text-sm">
-                      {entry.reg_num}
-                    </TableCell>
-                    <TableCell className="text-right font-mono font-semibold text-primary">
-                      {entry.transactions.toLocaleString()}
-                    </TableCell>
-                  </Link>
+                  <TableCell className="font-medium">
+                    <div className="flex items-center gap-2">
+                      {getRankIcon(entry.rank)}
+                      <span className="font-mono">{entry.rank}</span>
+                    </div>
+                  </TableCell>
+                  <TableCell className="font-medium">{entry.name}</TableCell>
+                  <TableCell className="text-muted-foreground font-mono text-sm">
+                    {entry.reg_num}
+                  </TableCell>
+                  <TableCell className="text-right font-mono font-semibold text-primary">
+                    {entry.transactions.toLocaleString()}
+                  </TableCell>
                 </TableRow>
               ))}
             </TableBody>
