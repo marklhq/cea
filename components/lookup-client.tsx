@@ -1,8 +1,19 @@
 "use client";
 
 import * as React from "react";
+import dynamic from "next/dynamic";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+
+// Dynamic import for Leaflet map (avoid SSR issues)
+const DistrictMap = dynamic(() => import("@/components/district-map"), {
+  ssr: false,
+  loading: () => (
+    <div className="h-[400px] w-full flex items-center justify-center bg-muted/30 rounded-lg border border-border/50">
+      <div className="text-muted-foreground animate-pulse">Loading map...</div>
+    </div>
+  ),
+});
 import {
   Table,
   TableBody,
@@ -670,6 +681,19 @@ export function LookupClient({ salespersonIndex, getSalespersonData, initialRegN
               </CardContent>
             </Card>
           </div>
+
+          {/* Planning Area Map */}
+          <Card className="border-border/50 bg-card/50 backdrop-blur">
+            <CardHeader>
+              <CardTitle className="text-foreground">Transaction Distribution by Area</CardTitle>
+              <CardDescription>
+                Geographic distribution of transactions across Singapore&apos;s planning areas
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <DistrictMap records={selectedSalesperson.records} />
+            </CardContent>
+          </Card>
 
           {/* Results Table */}
           <Card className="border-border/50 bg-card/50 backdrop-blur">

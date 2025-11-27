@@ -178,8 +178,8 @@ async function processCSV(): Promise<{
     // Skip header
     if (lineNumber === 1) continue;
     
-    // Parse CSV line (simple parsing - assumes no commas in values)
-    const parts = line.split(",");
+    // Parse CSV line (handling quoted fields with commas)
+    const parts = parseCSVLine(line);
     if (parts.length < 9) continue;
     
     const [name, transactionDate, regNum, propertyType, transactionType, represented, town, district, generalLocation] = parts;
