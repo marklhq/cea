@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
-import { BarChart3, Trophy, Search } from "lucide-react";
+import { BarChart3, Trophy, Search, ArrowRightLeft } from "lucide-react";
 
 const navItems = [
   {
@@ -20,6 +20,11 @@ const navItems = [
     href: "/lookup",
     label: "Lookup",
     icon: Search,
+  },
+  {
+    href: "/movements",
+    label: "Movements",
+    icon: ArrowRightLeft,
   },
 ];
 

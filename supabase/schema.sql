@@ -98,3 +98,25 @@ CREATE POLICY "Public read access" ON salesperson_info FOR SELECT USING (true);
 CREATE POLICY "Public read access" ON salesperson_monthly FOR SELECT USING (true);
 CREATE POLICY "Public read access" ON salesperson_records FOR SELECT USING (true);
 
+-- Salesperson movements table to track estate agent changes
+CREATE TABLE IF NOT EXISTS salesperson_movements (
+  id SERIAL PRIMARY KEY,
+  detected_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  reg_num TEXT NOT NULL,
+  salesperson_name TEXT NOT NULL,
+  old_estate_agent_name TEXT,
+  new_estate_agent_name TEXT,
+  old_estate_agent_license_no TEXT,
+  new_estate_agent_license_no TEXT
+);
+
+-- Indexes for efficient querying
+CREATE INDEX IF NOT EXISTS idx_movements_detected_at ON salesperson_movements(detected_at DESC);
+CREATE INDEX IF NOT EXISTS idx_movements_reg_num ON salesperson_movements(reg_num);
+
+-- Enable Row Level Security
+ALTER TABLE salesperson_movements ENABLE ROW LEVEL SECURITY;
+
+-- Create policy for public read access
+CREATE POLICY "Public read access" ON salesperson_movements FOR SELECT USING (true);
+

@@ -1,0 +1,52 @@
+name: Sync Salesperson Movements
+
+on:
+  schedule:
+    # Run daily at 8 AM SGT (midnight UTC)
+    - cron: '0 0 * * *'
+  workflow_dispatch: # Allow manual trigger
+
+jobs:
+  sync-movements:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Trigger Sync API
+        id: sync
+        run: |
+          echo "Starting sync at $(date)"
+          
+          RESPONSE=$(curl -s -w "\n%{http_code}" -X POST \
+            -H "x-api-key: ${{ secrets.SYNC_API_KEY }}" \
+            -H "Content-Type: application/json" \
+            "${{ secrets.APP_URL }}/api/sync-movements")
+          
+          HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
+          BODY=$(echo "$RESPONSE" | sed '$d')
+          
+          echo "HTTP Status: $HTTP_CODE"
+          echo "Response: $BODY"
+          
+          if [ "$HTTP_CODE" != "200" ]; then
+            echo "::error::Sync failed with HTTP $HTTP_CODE"
+            exit 1
+          fi
+          
+          # Parse and display stats
+          MOVEMENTS=$(echo "$BODY" | jq -r '.stats.movementsDetected // 0')
+          TOTAL=$(echo "$BODY" | jq -r '.stats.totalRecordsFetched // 0')
+          DURATION=$(echo "$BODY" | jq -r '.stats.durationSeconds // 0')
+          
+          echo "## Sync Results" >> $GITHUB_STEP_SUMMARY
+          echo "- **Records Fetched:** $TOTAL" >> $GITHUB_STEP_SUMMARY
+          echo "- **Movements Detected:** $MOVEMENTS" >> $GITHUB_STEP_SUMMARY
+          echo "- **Duration:** ${DURATION}s" >> $GITHUB_STEP_SUMMARY
+          
+          echo "Sync completed successfully"
+
+      - name: Notify on Failure
+        if: failure()
+        run: |
+          echo "::warning::Sync failed - check logs for details"
+
