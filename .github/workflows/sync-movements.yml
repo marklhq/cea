@@ -17,7 +17,7 @@ jobs:
         run: |
           echo "Starting sync at $(date)"
           
-          RESPONSE=$(curl -s -w "\n%{http_code}" -X POST \
+          RESPONSE=$(curl -s -L -w "\n%{http_code}" -X POST \
             -H "x-api-key: ${{ secrets.SYNC_API_KEY }}" \
             -H "Content-Type: application/json" \
             "${{ secrets.APP_URL }}/api/sync-movements")
