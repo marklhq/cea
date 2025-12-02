@@ -34,14 +34,31 @@ jobs:
           fi
           
           # Parse and display stats
-          MOVEMENTS=$(echo "$BODY" | jq -r '.stats.movementsDetected // 0')
           TOTAL=$(echo "$BODY" | jq -r '.stats.totalRecordsFetched // 0')
+          EXISTING=$(echo "$BODY" | jq -r '.stats.existingSalespersons // 0')
+          MOVEMENTS=$(echo "$BODY" | jq -r '.stats.movementsDetected // 0')
+          AGENCY_CHANGES=$(echo "$BODY" | jq -r '.stats.agencyChanges // 0')
+          NEW_REGS=$(echo "$BODY" | jq -r '.stats.newRegistrations // 0')
+          DEREGS=$(echo "$BODY" | jq -r '.stats.deregistrations // 0')
+          UPDATED=$(echo "$BODY" | jq -r '.stats.salespersonsUpdated // 0')
           DURATION=$(echo "$BODY" | jq -r '.stats.durationSeconds // 0')
           
           echo "## Sync Results" >> $GITHUB_STEP_SUMMARY
-          echo "- **Records Fetched:** $TOTAL" >> $GITHUB_STEP_SUMMARY
-          echo "- **Movements Detected:** $MOVEMENTS" >> $GITHUB_STEP_SUMMARY
-          echo "- **Duration:** ${DURATION}s" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Summary" >> $GITHUB_STEP_SUMMARY
+          echo "| Metric | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|--------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Records Fetched from data.gov.sg | $TOTAL |" >> $GITHUB_STEP_SUMMARY
+          echo "| Existing Salespersons in DB | $EXISTING |" >> $GITHUB_STEP_SUMMARY
+          echo "| Salespersons Updated | $UPDATED |" >> $GITHUB_STEP_SUMMARY
+          echo "| Duration | ${DURATION}s |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Movements Detected: $MOVEMENTS" >> $GITHUB_STEP_SUMMARY
+          echo "| Type | Count |" >> $GITHUB_STEP_SUMMARY
+          echo "|------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| 🔄 Agency Changes | $AGENCY_CHANGES |" >> $GITHUB_STEP_SUMMARY
+          echo "| ➕ New Registrations | $NEW_REGS |" >> $GITHUB_STEP_SUMMARY
+          echo "| ➖ Deregistrations | $DEREGS |" >> $GITHUB_STEP_SUMMARY
           
           echo "Sync completed successfully"
 

@@ -30,6 +30,8 @@ interface ExistingSalesperson {
   estate_agent_license_no: string | null;
 }
 
+type MovementType = "agency_change" | "new_registration" | "deregistration";
+
 interface Movement {
   reg_num: string;
   salesperson_name: string;
@@ -37,6 +39,14 @@ interface Movement {
   new_estate_agent_name: string | null;
   old_estate_agent_license_no: string | null;
   new_estate_agent_license_no: string | null;
+  movement_type: MovementType;
+}
+
+interface MovementStats {
+  agencyChanges: number;
+  newRegistrations: number;
+  deregistrations: number;
+  total: number;
 }
 
 // Fetch all records from data.gov.sg API with pagination
@@ -73,19 +83,25 @@ async function fetchAllSalespersons(): Promise<DataGovRecord[]> {
   return allRecords;
 }
 
-// Compare and detect movements
-function detectMovements(
+// Compare and detect all types of movements
+function detectAllMovements(
   newRecords: DataGovRecord[],
   existingMap: Map<string, ExistingSalesperson>
-): Movement[] {
+): { movements: Movement[]; stats: MovementStats } {
   const movements: Movement[] = [];
 
+  // Build a set of reg_nums from new data for quick lookup
+  const newRegNums = new Set<string>();
+
+  // Process new records
   for (const record of newRecords) {
     const regNum = record.registration_no;
+    newRegNums.add(regNum);
+
     const existing = existingMap.get(regNum);
 
     if (existing) {
-      // Check if estate agent has changed
+      // Existing salesperson - check if estate agent has changed
       const oldAgent = existing.estate_agent_name || null;
       const newAgent = record.estate_agent_name || null;
 
@@ -94,6 +110,7 @@ function detectMovements(
       const newAgentNorm = newAgent?.trim() || null;
 
       if (oldAgentNorm !== newAgentNorm) {
+        // Scenario 1: Agency change
         movements.push({
           reg_num: regNum,
           salesperson_name: record.salesperson_name,
@@ -101,13 +118,53 @@ function detectMovements(
           new_estate_agent_name: newAgentNorm,
           old_estate_agent_license_no: existing.estate_agent_license_no || null,
           new_estate_agent_license_no: record.estate_agent_license_no || null,
+          movement_type: "agency_change",
         });
       }
+      // Scenario 2: No change - do nothing (handled implicitly)
+    } else {
+      // Scenario 4: New registration - salesperson not in existing data
+      movements.push({
+        reg_num: regNum,
+        salesperson_name: record.salesperson_name,
+        old_estate_agent_name: null,
+        new_estate_agent_name: record.estate_agent_name || null,
+        old_estate_agent_license_no: null,
+        new_estate_agent_license_no: record.estate_agent_license_no || null,
+        movement_type: "new_registration",
+      });
     }
-    // Note: We don't track new salespersons as "movements" - only changes
   }
 
-  return movements;
+  // Scenario 3: Detect deregistrations - existing salespersons not in new data
+  for (const [regNum, existing] of existingMap) {
+    if (!newRegNums.has(regNum)) {
+      movements.push({
+        reg_num: regNum,
+        salesperson_name: existing.name,
+        old_estate_agent_name: existing.estate_agent_name || null,
+        new_estate_agent_name: null,
+        old_estate_agent_license_no: existing.estate_agent_license_no || null,
+        new_estate_agent_license_no: null,
+        movement_type: "deregistration",
+      });
+    }
+  }
+
+  // Calculate stats by type
+  const stats: MovementStats = {
+    agencyChanges: movements.filter((m) => m.movement_type === "agency_change")
+      .length,
+    newRegistrations: movements.filter(
+      (m) => m.movement_type === "new_registration"
+    ).length,
+    deregistrations: movements.filter(
+      (m) => m.movement_type === "deregistration"
+    ).length,
+    total: movements.length,
+  };
+
+  return { movements, stats };
 }
 
 export async function POST(request: NextRequest) {
@@ -155,23 +212,36 @@ export async function POST(request: NextRequest) {
     }
     console.log(`Existing salespersons in database: ${existingMap.size}`);
 
-    // Step 3: Detect movements
-    const movements = detectMovements(newRecords, existingMap);
-    console.log(`Detected ${movements.length} movements`);
+    // Step 3: Detect all movements (agency changes, new registrations, deregistrations)
+    const { movements, stats: movementStats } = detectAllMovements(
+      newRecords,
+      existingMap
+    );
+    console.log(`Detected movements:`);
+    console.log(`  - Agency changes: ${movementStats.agencyChanges}`);
+    console.log(`  - New registrations: ${movementStats.newRegistrations}`);
+    console.log(`  - Deregistrations: ${movementStats.deregistrations}`);
+    console.log(`  - Total: ${movementStats.total}`);
 
     // Step 4: Insert movements into salesperson_movements table
     if (movements.length > 0) {
-      const { error: insertError } = await supabase
-        .from("salesperson_movements")
-        .insert(movements);
+      // Insert in batches of 1000 to avoid payload limits
+      const batchSize = 1000;
+      for (let i = 0; i < movements.length; i += batchSize) {
+        const batch = movements.slice(i, i + batchSize);
+        const { error: insertError } = await supabase
+          .from("salesperson_movements")
+          .insert(batch);
 
-      if (insertError) {
-        throw new Error(`Failed to insert movements: ${insertError.message}`);
+        if (insertError) {
+          throw new Error(`Failed to insert movements: ${insertError.message}`);
+        }
       }
       console.log(`Inserted ${movements.length} movement records`);
     }
 
-    // Step 5: Update salesperson_info with latest data
+    // Step 5: Update salesperson_info with latest data (only for records in new data)
+    // This adds new salespersons and updates existing ones, but does NOT delete departed ones
     console.log("Updating salesperson_info table...");
     const updateRows = newRecords.map((record) => ({
       reg_num: record.registration_no,
@@ -206,11 +276,25 @@ export async function POST(request: NextRequest) {
       stats: {
         totalRecordsFetched: newRecords.length,
         existingSalespersons: existingMap.size,
-        movementsDetected: movements.length,
+        movementsDetected: movementStats.total,
+        agencyChanges: movementStats.agencyChanges,
+        newRegistrations: movementStats.newRegistrations,
+        deregistrations: movementStats.deregistrations,
         salespersonsUpdated: updateRows.length,
         durationSeconds: parseFloat(duration),
       },
-      movements: movements.slice(0, 10), // Return first 10 movements as sample
+      // Return sample movements by type
+      sampleMovements: {
+        agencyChanges: movements
+          .filter((m) => m.movement_type === "agency_change")
+          .slice(0, 5),
+        newRegistrations: movements
+          .filter((m) => m.movement_type === "new_registration")
+          .slice(0, 5),
+        deregistrations: movements
+          .filter((m) => m.movement_type === "deregistration")
+          .slice(0, 5),
+      },
     });
   } catch (error) {
     console.error("Sync error:", error);
@@ -228,4 +312,3 @@ export async function POST(request: NextRequest) {
 export async function GET(request: NextRequest) {
   return POST(request);
 }
-
