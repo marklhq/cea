@@ -350,3 +350,53 @@ export async function getAvailableYears(): Promise<string[]> {
   if (error) throw error;
   return data.map((row) => row.year);
 }
+
+// Estate agent breakdown for donut chart
+export interface EstateAgentBreakdown {
+  name: string;
+  count: number;
+}
+
+export async function getEstateAgentBreakdown(minThreshold: number = 100): Promise<EstateAgentBreakdown[]> {
+  const client = checkSupabase();
+  
+  // Fetch all salesperson info with estate agent names
+  const { data, error } = await client
+    .from('salesperson_info')
+    .select('estate_agent_name');
+
+  if (error) throw error;
+
+  // Count salespersons per estate agent
+  const agentCounts: { [name: string]: number } = {};
+  for (const row of data) {
+    const agentName = row.estate_agent_name || 'Unknown';
+    agentCounts[agentName] = (agentCounts[agentName] || 0) + 1;
+  }
+
+  // Separate into major agents (>=threshold) and others (<threshold)
+  const result: EstateAgentBreakdown[] = [];
+  let othersCount = 0;
+
+  for (const [name, count] of Object.entries(agentCounts)) {
+    if (count >= minThreshold) {
+      result.push({ name, count });
+    } else {
+      othersCount += count;
+    }
+  }
+
+  // Add "Others" category if there are any
+  if (othersCount > 0) {
+    result.push({ name: 'Others', count: othersCount });
+  }
+
+  // Sort by count descending (but keep Others at the end)
+  result.sort((a, b) => {
+    if (a.name === 'Others') return 1;
+    if (b.name === 'Others') return -1;
+    return b.count - a.count;
+  });
+
+  return result;
+}

@@ -28,9 +28,10 @@ interface ExistingSalesperson {
   name: string;
   estate_agent_name: string | null;
   estate_agent_license_no: string | null;
+  status: string;
 }
 
-type MovementType = "agency_change" | "new_registration" | "deregistration";
+type MovementType = "agency_change" | "new_registration" | "deregistration" | "reregistration";
 
 interface Movement {
   reg_num: string;
@@ -87,8 +88,10 @@ async function fetchAllSalespersons(): Promise<DataGovRecord[]> {
 function detectAllMovements(
   newRecords: DataGovRecord[],
   existingMap: Map<string, ExistingSalesperson>
-): { movements: Movement[]; stats: MovementStats } {
+): { movements: Movement[]; stats: MovementStats; deregisteredRegNums: string[]; reregisteredRegNums: string[] } {
   const movements: Movement[] = [];
+  const deregisteredRegNums: string[] = [];
+  const reregisteredRegNums: string[] = [];
 
   // Build a set of reg_nums from new data for quick lookup
   const newRegNums = new Set<string>();
@@ -101,29 +104,42 @@ function detectAllMovements(
     const existing = existingMap.get(regNum);
 
     if (existing) {
-      // Existing salesperson - check if estate agent has changed
-      const oldAgent = existing.estate_agent_name || null;
-      const newAgent = record.estate_agent_name || null;
-
-      // Normalize for comparison (trim and handle nulls)
-      const oldAgentNorm = oldAgent?.trim() || null;
-      const newAgentNorm = newAgent?.trim() || null;
-
-      if (oldAgentNorm !== newAgentNorm) {
-        // Scenario 1: Agency change
+      // Check if this is a re-registration (was deregistered, now active again)
+      if (existing.status === "deregistered") {
         movements.push({
           reg_num: regNum,
           salesperson_name: record.salesperson_name,
-          old_estate_agent_name: oldAgentNorm,
-          new_estate_agent_name: newAgentNorm,
+          old_estate_agent_name: existing.estate_agent_name || null,
+          new_estate_agent_name: record.estate_agent_name || null,
           old_estate_agent_license_no: existing.estate_agent_license_no || null,
           new_estate_agent_license_no: record.estate_agent_license_no || null,
-          movement_type: "agency_change",
+          movement_type: "reregistration",
         });
+        reregisteredRegNums.push(regNum);
+      } else {
+        // Active salesperson - check if estate agent has changed
+        const oldAgent = existing.estate_agent_name || null;
+        const newAgent = record.estate_agent_name || null;
+
+        // Normalize for comparison (trim and handle nulls)
+        const oldAgentNorm = oldAgent?.trim() || null;
+        const newAgentNorm = newAgent?.trim() || null;
+
+        if (oldAgentNorm !== newAgentNorm) {
+          // Scenario 1: Agency change
+          movements.push({
+            reg_num: regNum,
+            salesperson_name: record.salesperson_name,
+            old_estate_agent_name: oldAgentNorm,
+            new_estate_agent_name: newAgentNorm,
+            old_estate_agent_license_no: existing.estate_agent_license_no || null,
+            new_estate_agent_license_no: record.estate_agent_license_no || null,
+            movement_type: "agency_change",
+          });
+        }
       }
-      // Scenario 2: No change - do nothing (handled implicitly)
     } else {
-      // Scenario 4: New registration - salesperson not in existing data
+      // Scenario 4: New registration - salesperson not in existing data at all
       movements.push({
         reg_num: regNum,
         salesperson_name: record.salesperson_name,
@@ -136,9 +152,9 @@ function detectAllMovements(
     }
   }
 
-  // Scenario 3: Detect deregistrations - existing salespersons not in new data
+  // Scenario 3: Detect deregistrations - ONLY for salespersons currently marked as 'active'
   for (const [regNum, existing] of existingMap) {
-    if (!newRegNums.has(regNum)) {
+    if (!newRegNums.has(regNum) && existing.status === "active") {
       movements.push({
         reg_num: regNum,
         salesperson_name: existing.name,
@@ -148,23 +164,19 @@ function detectAllMovements(
         new_estate_agent_license_no: null,
         movement_type: "deregistration",
       });
+      deregisteredRegNums.push(regNum);
     }
   }
 
   // Calculate stats by type
   const stats: MovementStats = {
-    agencyChanges: movements.filter((m) => m.movement_type === "agency_change")
-      .length,
-    newRegistrations: movements.filter(
-      (m) => m.movement_type === "new_registration"
-    ).length,
-    deregistrations: movements.filter(
-      (m) => m.movement_type === "deregistration"
-    ).length,
+    agencyChanges: movements.filter((m) => m.movement_type === "agency_change").length,
+    newRegistrations: movements.filter((m) => m.movement_type === "new_registration").length,
+    deregistrations: movements.filter((m) => m.movement_type === "deregistration").length,
     total: movements.length,
   };
 
-  return { movements, stats };
+  return { movements, stats, deregisteredRegNums, reregisteredRegNums };
 }
 
 export async function POST(request: NextRequest) {
@@ -195,11 +207,11 @@ export async function POST(request: NextRequest) {
     // Step 1: Fetch all salesperson data from data.gov.sg
     const newRecords = await fetchAllSalespersons();
 
-    // Step 2: Fetch existing salesperson_info from Supabase
+    // Step 2: Fetch existing salesperson_info from Supabase (including status)
     console.log("Fetching existing salesperson data from Supabase...");
     const { data: existingData, error: fetchError } = await supabase
       .from("salesperson_info")
-      .select("reg_num, name, estate_agent_name, estate_agent_license_no");
+      .select("reg_num, name, estate_agent_name, estate_agent_license_no, status");
 
     if (fetchError) {
       throw new Error(`Failed to fetch existing data: ${fetchError.message}`);
@@ -212,8 +224,8 @@ export async function POST(request: NextRequest) {
     }
     console.log(`Existing salespersons in database: ${existingMap.size}`);
 
-    // Step 3: Detect all movements (agency changes, new registrations, deregistrations)
-    const { movements, stats: movementStats } = detectAllMovements(
+    // Step 3: Detect all movements (agency changes, new registrations, deregistrations, re-registrations)
+    const { movements, stats: movementStats, deregisteredRegNums, reregisteredRegNums } = detectAllMovements(
       newRecords,
       existingMap
     );
@@ -221,6 +233,7 @@ export async function POST(request: NextRequest) {
     console.log(`  - Agency changes: ${movementStats.agencyChanges}`);
     console.log(`  - New registrations: ${movementStats.newRegistrations}`);
     console.log(`  - Deregistrations: ${movementStats.deregistrations}`);
+    console.log(`  - Re-registrations: ${reregisteredRegNums.length}`);
     console.log(`  - Total: ${movementStats.total}`);
 
     // Step 4: Insert movements into salesperson_movements table
@@ -240,8 +253,26 @@ export async function POST(request: NextRequest) {
       console.log(`Inserted ${movements.length} movement records`);
     }
 
-    // Step 5: Update salesperson_info with latest data (only for records in new data)
-    // This adds new salespersons and updates existing ones, but does NOT delete departed ones
+    // Step 5: Update status for deregistered salespersons
+    if (deregisteredRegNums.length > 0) {
+      console.log(`Marking ${deregisteredRegNums.length} salespersons as deregistered...`);
+      // Update in batches
+      const batchSize = 500;
+      for (let i = 0; i < deregisteredRegNums.length; i += batchSize) {
+        const batch = deregisteredRegNums.slice(i, i + batchSize);
+        const { error: updateError } = await supabase
+          .from("salesperson_info")
+          .update({ status: "deregistered" })
+          .in("reg_num", batch);
+
+        if (updateError) {
+          throw new Error(`Failed to update deregistered status: ${updateError.message}`);
+        }
+      }
+    }
+
+    // Step 6: Update salesperson_info with latest data (only for records in new data)
+    // This adds new salespersons and updates existing ones with status='active'
     console.log("Updating salesperson_info table...");
     const updateRows = newRecords.map((record) => ({
       reg_num: record.registration_no,
@@ -250,12 +281,13 @@ export async function POST(request: NextRequest) {
       registration_end_date: record.registration_end_date || null,
       estate_agent_name: record.estate_agent_name || null,
       estate_agent_license_no: record.estate_agent_license_no || null,
+      status: "active", // All salespersons in API response are active
     }));
 
     // Upsert in batches of 1000
-    const batchSize = 1000;
-    for (let i = 0; i < updateRows.length; i += batchSize) {
-      const batch = updateRows.slice(i, i + batchSize);
+    const upsertBatchSize = 1000;
+    for (let i = 0; i < updateRows.length; i += upsertBatchSize) {
+      const batch = updateRows.slice(i, i + upsertBatchSize);
       const { error: upsertError } = await supabase
         .from("salesperson_info")
         .upsert(batch, { onConflict: "reg_num" });
@@ -280,6 +312,7 @@ export async function POST(request: NextRequest) {
         agencyChanges: movementStats.agencyChanges,
         newRegistrations: movementStats.newRegistrations,
         deregistrations: movementStats.deregistrations,
+        reregistrations: reregisteredRegNums.length,
         salespersonsUpdated: updateRows.length,
         durationSeconds: parseFloat(duration),
       },
@@ -293,6 +326,9 @@ export async function POST(request: NextRequest) {
           .slice(0, 5),
         deregistrations: movements
           .filter((m) => m.movement_type === "deregistration")
+          .slice(0, 5),
+        reregistrations: movements
+          .filter((m) => m.movement_type === "reregistration")
           .slice(0, 5),
       },
     });

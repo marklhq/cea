@@ -4,6 +4,7 @@ import { StatsCards } from "@/components/stats-cards";
 import { TransactionsChart } from "@/components/charts/transactions-chart";
 import { SalespersonsChart } from "@/components/charts/salespersons-chart";
 import { StackedTypeChart } from "@/components/charts/stacked-type-chart";
+import { EstateAgentChart } from "@/components/charts/estate-agent-chart";
 import { transformTypeData, getAllTypes } from "@/lib/chart-utils";
 import {
   getMetadata,
@@ -11,6 +12,7 @@ import {
   getSalespersonsByYear,
   getTransactionTypeByYear,
   getPropertyTypeByYear,
+  getEstateAgentBreakdown,
   yearDataToChartFormat,
 } from "@/lib/data";
 
@@ -37,12 +39,14 @@ export default async function DashboardPage() {
     salespersonsByYear,
     transactionTypeByYear,
     propertyTypeByYear,
+    estateAgentBreakdown,
   ] = await Promise.all([
     getMetadata(),
     getTransactionsByYear(),
     getSalespersonsByYear(),
     getTransactionTypeByYear(),
     getPropertyTypeByYear(),
+    getEstateAgentBreakdown(100), // Group agents with <100 salespersons as "Others"
   ]);
 
   const transactionsChartData = yearDataToChartFormat(transactionsByYear);
@@ -100,6 +104,8 @@ export default async function DashboardPage() {
           colors={PROPERTY_TYPE_COLORS}
         />
       </div>
+
+      <EstateAgentChart data={estateAgentBreakdown} />
     </div>
   );
 }

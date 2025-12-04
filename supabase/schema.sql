@@ -44,8 +44,12 @@ CREATE TABLE IF NOT EXISTS salesperson_info (
   registration_start_date DATE,
   registration_end_date DATE,
   estate_agent_name TEXT,
-  estate_agent_license_no TEXT
+  estate_agent_license_no TEXT,
+  status TEXT NOT NULL DEFAULT 'active'
 );
+
+-- Index for status queries
+CREATE INDEX IF NOT EXISTS idx_salesperson_info_status ON salesperson_info(status);
 
 -- Salesperson monthly aggregates (for leaderboard)
 CREATE TABLE IF NOT EXISTS salesperson_monthly (
