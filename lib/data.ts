@@ -296,10 +296,38 @@ export async function getSalespersonTotals(limit: number = 100): Promise<Salespe
 export async function getLeaderboardByDateRange(
   startDate: string, // "2024-01" format
   endDate: string,   // "2024-12" format
-  limit: number = 100
+  limit: number = 100,
+  propertyTypes: string[] = [],
+  transactionTypes: string[] = [],
+  represented: string[] = []
 ): Promise<SalespersonTotal[]> {
   const client = checkSupabase();
   
+  // Check if any filters are applied (excluding date range)
+  const hasFilters = propertyTypes.length > 0 || transactionTypes.length > 0 || represented.length > 0;
+  
+  if (hasFilters) {
+    // Use optimized function that includes date range filtering with other filters
+    // This takes 10-15 seconds but respects all filter criteria including dates
+    const { data, error } = await client.rpc('get_leaderboard_with_filters_and_dates', {
+      start_date: startDate,
+      end_date: endDate,
+      property_types: propertyTypes.length > 0 ? propertyTypes : null,
+      transaction_types: transactionTypes.length > 0 ? transactionTypes : null,
+      represented_types: represented.length > 0 ? represented : null,
+      result_limit: limit
+    });
+    
+    if (error) throw error;
+    
+    return (data || []).map((row: { reg_num: string; name: string; total_transactions: number }) => ({
+      reg_num: row.reg_num,
+      name: row.name,
+      total_transactions: Number(row.total_transactions),
+    }));
+  }
+  
+  // No filters - use optimized salesperson_monthly table
   const { data, error } = await client
     .rpc('get_leaderboard_by_date_range', {
       start_date: startDate,

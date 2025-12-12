@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/table";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 import { ArrowUpDown, Trophy, Medal, Award, ChevronLeft, ChevronRight } from "lucide-react";
 
 interface LeaderboardEntry {
@@ -23,6 +24,7 @@ interface LeaderboardEntry {
 interface LeaderboardTableProps {
   data: LeaderboardEntry[];
   dateRange: string;
+  isLoading?: boolean;
 }
 
 type SortField = "rank" | "name" | "transactions";
@@ -30,7 +32,7 @@ type SortDirection = "asc" | "desc";
 
 const ITEMS_PER_PAGE = 25;
 
-export function LeaderboardTable({ data, dateRange }: LeaderboardTableProps) {
+export function LeaderboardTable({ data, dateRange, isLoading = false }: LeaderboardTableProps) {
   const router = useRouter();
   const [sortField, setSortField] = React.useState<SortField>("transactions");
   const [sortDirection, setSortDirection] = React.useState<SortDirection>("desc");
@@ -133,61 +135,97 @@ export function LeaderboardTable({ data, dateRange }: LeaderboardTableProps) {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {paginatedData.map((entry) => (
-                <TableRow 
-                  key={entry.reg_num} 
-                  className="cursor-pointer hover:bg-accent/50 transition-colors"
-                  onClick={() => router.push(`/lookup?reg_num=${encodeURIComponent(entry.reg_num)}`)}
-                >
-                  <TableCell className="font-medium">
-                    <div className="flex items-center gap-2">
-                      {getRankIcon(entry.rank)}
-                      <span className="font-mono">{entry.rank}</span>
-                    </div>
-                  </TableCell>
-                  <TableCell className="font-medium">{entry.name}</TableCell>
-                  <TableCell className="text-muted-foreground font-mono text-sm">
-                    {entry.reg_num}
-                  </TableCell>
-                  <TableCell className="text-right font-mono font-semibold text-primary">
-                    {entry.transactions.toLocaleString()}
-                  </TableCell>
-                </TableRow>
-              ))}
+              {isLoading ? (
+                // Skeleton loading rows
+                Array.from({ length: ITEMS_PER_PAGE }).map((_, index) => (
+                  <TableRow key={`skeleton-${index}`}>
+                    <TableCell>
+                      <div className="flex items-center gap-2">
+                        <Skeleton className="h-4 w-4" />
+                        <Skeleton className="h-4 w-12" />
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <Skeleton className="h-4 w-48" />
+                    </TableCell>
+                    <TableCell>
+                      <Skeleton className="h-4 w-24" />
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <Skeleton className="h-4 w-16 ml-auto" />
+                    </TableCell>
+                  </TableRow>
+                ))
+              ) : (
+                paginatedData.map((entry) => (
+                  <TableRow 
+                    key={entry.reg_num} 
+                    className="cursor-pointer hover:bg-accent/50 transition-colors"
+                    onClick={() => router.push(`/lookup?reg_num=${encodeURIComponent(entry.reg_num)}`)}
+                  >
+                    <TableCell className="font-medium">
+                      <div className="flex items-center gap-2">
+                        {getRankIcon(entry.rank)}
+                        <span className="font-mono">{entry.rank}</span>
+                      </div>
+                    </TableCell>
+                    <TableCell className="font-medium">{entry.name}</TableCell>
+                    <TableCell className="text-muted-foreground font-mono text-sm">
+                      {entry.reg_num}
+                    </TableCell>
+                    <TableCell className="text-right font-mono font-semibold text-primary">
+                      {entry.transactions.toLocaleString()}
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
             </TableBody>
           </Table>
         </div>
 
         {/* Pagination */}
         <div className="flex items-center justify-between mt-4">
-          <p className="text-sm text-muted-foreground">
-            Showing {((currentPage - 1) * ITEMS_PER_PAGE) + 1} to{" "}
-            {Math.min(currentPage * ITEMS_PER_PAGE, sortedData.length)} of{" "}
-            {sortedData.length.toLocaleString()} salespersons
-          </p>
-          <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-              disabled={currentPage === 1}
-            >
-              <ChevronLeft className="h-4 w-4" />
-              Previous
-            </Button>
-            <span className="text-sm text-muted-foreground px-2">
-              Page {currentPage} of {totalPages}
-            </span>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-              disabled={currentPage === totalPages}
-            >
-              Next
-              <ChevronRight className="h-4 w-4" />
-            </Button>
-          </div>
+          {isLoading ? (
+            <>
+              <Skeleton className="h-5 w-48" />
+              <div className="flex items-center gap-2">
+                <Skeleton className="h-8 w-24" />
+                <Skeleton className="h-5 w-24" />
+                <Skeleton className="h-8 w-20" />
+              </div>
+            </>
+          ) : (
+            <>
+              <p className="text-sm text-muted-foreground">
+                Showing {((currentPage - 1) * ITEMS_PER_PAGE) + 1} to{" "}
+                {Math.min(currentPage * ITEMS_PER_PAGE, sortedData.length)} of{" "}
+                {sortedData.length.toLocaleString()} salespersons
+              </p>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                  disabled={currentPage === 1}
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                  Previous
+                </Button>
+                <span className="text-sm text-muted-foreground px-2">
+                  Page {currentPage} of {totalPages}
+                </span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                  disabled={currentPage === totalPages}
+                >
+                  Next
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+              </div>
+            </>
+          )}
         </div>
       </CardContent>
     </Card>

@@ -3,6 +3,31 @@ export const dynamic = 'force-dynamic';
 import { LeaderboardClient } from "@/components/leaderboard-client";
 import { getSalespersonTotals, getAvailableYears } from "@/lib/data";
 import { fetchLeaderboardByDateRange } from "./actions";
+import { FilterOption } from "@/components/ui/multi-select-filter";
+
+// Define filter options
+const propertyTypeOptions: FilterOption[] = [
+  { value: "HDB", label: "HDB" },
+  { value: "CONDOMINIUM_APARTMENTS", label: "Condominium/Apartments" },
+  { value: "EXECUTIVE_CONDOMINIUM", label: "Executive Condominium" },
+  { value: "LANDED", label: "Landed" },
+  { value: "STRATA_LANDED", label: "Strata Landed" },
+];
+
+const transactionTypeOptions: FilterOption[] = [
+  { value: "RESALE", label: "Resale" },
+  { value: "NEW SALE", label: "New Sale" },
+  { value: "WHOLE RENTAL", label: "Whole Rental" },
+  { value: "ROOM RENTAL", label: "Room Rental" },
+  { value: "SUB-SALE", label: "Sub-Sale" },
+];
+
+const representedOptions: FilterOption[] = [
+  { value: "BUYER", label: "Buyer" },
+  { value: "SELLER", label: "Seller" },
+  { value: "LANDLORD", label: "Landlord" },
+  { value: "TENANT", label: "Tenant" },
+];
 
 export default async function LeaderboardPage() {
   // Fetch pre-aggregated totals (fast - single query)
@@ -31,6 +56,9 @@ export default async function LeaderboardPage() {
         availableYears={years}
         defaultStartDate={minDate}
         defaultEndDate={maxDate}
+        propertyTypeOptions={propertyTypeOptions}
+        transactionTypeOptions={transactionTypeOptions}
+        representedOptions={representedOptions}
         fetchLeaderboard={fetchLeaderboardByDateRange}
       />
     </div>
