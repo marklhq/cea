@@ -3,8 +3,6 @@
 import * as React from "react";
 import { DateRangePicker } from "@/components/date-range-picker";
 import { LeaderboardTable } from "@/components/leaderboard-table";
-import { MultiSelectFilter, FilterOption } from "@/components/ui/multi-select-filter";
-import { Button } from "@/components/ui/button";
 import { SalespersonTotal } from "@/lib/data";
 
 interface LeaderboardClientProps {
@@ -12,16 +10,7 @@ interface LeaderboardClientProps {
   availableYears: string[];
   defaultStartDate: string;
   defaultEndDate: string;
-  propertyTypeOptions: FilterOption[];
-  transactionTypeOptions: FilterOption[];
-  representedOptions: FilterOption[];
-  fetchLeaderboard: (
-    startDate: string,
-    endDate: string,
-    propertyTypes?: string[],
-    transactionTypes?: string[],
-    represented?: string[]
-  ) => Promise<SalespersonTotal[]>;
+  fetchLeaderboard: (startDate: string, endDate: string) => Promise<SalespersonTotal[]>;
 }
 
 export function LeaderboardClient({
@@ -29,9 +18,6 @@ export function LeaderboardClient({
   availableYears,
   defaultStartDate,
   defaultEndDate,
-  propertyTypeOptions,
-  transactionTypeOptions,
-  representedOptions,
   fetchLeaderboard,
 }: LeaderboardClientProps) {
   const [startYear, startMonth] = defaultStartDate.split("-");
@@ -41,45 +27,26 @@ export function LeaderboardClient({
   const [selectedStartMonth, setSelectedStartMonth] = React.useState(startMonth);
   const [selectedEndYear, setSelectedEndYear] = React.useState(endYear);
   const [selectedEndMonth, setSelectedEndMonth] = React.useState(endMonth);
-  const [selectedPropertyTypes, setSelectedPropertyTypes] = React.useState<string[]>([]);
-  const [selectedTransactionTypes, setSelectedTransactionTypes] = React.useState<string[]>([]);
-  const [selectedRepresented, setSelectedRepresented] = React.useState<string[]>([]);
   const [leaderboard, setLeaderboard] = React.useState(initialData);
   const [isLoading, setIsLoading] = React.useState(false);
 
   const startDate = `${selectedStartYear}-${selectedStartMonth}`;
   const endDate = `${selectedEndYear}-${selectedEndMonth}`;
   const isDefaultRange = startDate === defaultStartDate && endDate === defaultEndDate;
-  const hasFilters = selectedPropertyTypes.length > 0 || selectedTransactionTypes.length > 0 || selectedRepresented.length > 0;
 
-  // Fetch new data when date range or filters change
+  // Fetch new data when date range changes
   React.useEffect(() => {
-    if (isDefaultRange && !hasFilters) {
+    if (isDefaultRange) {
       setLeaderboard(initialData);
+      setIsLoading(false); // Reset loading state when using cached default data
       return;
     }
 
     setIsLoading(true);
-    fetchLeaderboard(
-      startDate,
-      endDate,
-      selectedPropertyTypes,
-      selectedTransactionTypes,
-      selectedRepresented
-    )
+    fetchLeaderboard(startDate, endDate)
       .then(setLeaderboard)
       .finally(() => setIsLoading(false));
-  }, [
-    startDate,
-    endDate,
-    selectedPropertyTypes,
-    selectedTransactionTypes,
-    selectedRepresented,
-    isDefaultRange,
-    hasFilters,
-    fetchLeaderboard,
-    initialData,
-  ]);
+  }, [startDate, endDate, isDefaultRange, fetchLeaderboard, initialData]);
 
   const formatDateRange = () => {
     const months = [
@@ -98,62 +65,26 @@ export function LeaderboardClient({
     transactions: sp.total_transactions,
   }));
 
-  const handleResetFilters = () => {
-    setSelectedPropertyTypes([]);
-    setSelectedTransactionTypes([]);
-    setSelectedRepresented([]);
-  };
-
   return (
     <div className="space-y-6">
-      <div className="flex flex-col gap-4">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <DateRangePicker
-            startYear={selectedStartYear}
-            endYear={selectedEndYear}
-            startMonth={selectedStartMonth}
-            endMonth={selectedEndMonth}
-            availableYears={availableYears}
-            onStartYearChange={setSelectedStartYear}
-            onEndYearChange={setSelectedEndYear}
-            onStartMonthChange={setSelectedStartMonth}
-            onEndMonthChange={setSelectedEndMonth}
-          />
-          {hasFilters && (
-            <Button
-              onClick={handleResetFilters}
-              variant="outline"
-              size="sm"
-            >
-              Reset Filters
-            </Button>
-          )}
-        </div>
-        
-        <div className="flex flex-wrap gap-3">
-          <MultiSelectFilter
-            label="Property Type"
-            options={propertyTypeOptions}
-            selectedValues={selectedPropertyTypes}
-            onSelectionChange={setSelectedPropertyTypes}
-          />
-          <MultiSelectFilter
-            label="Transaction Type"
-            options={transactionTypeOptions}
-            selectedValues={selectedTransactionTypes}
-            onSelectionChange={setSelectedTransactionTypes}
-          />
-          <MultiSelectFilter
-            label="Represented"
-            options={representedOptions}
-            selectedValues={selectedRepresented}
-            onSelectionChange={setSelectedRepresented}
-          />
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <DateRangePicker
+          startYear={selectedStartYear}
+          endYear={selectedEndYear}
+          startMonth={selectedStartMonth}
+          endMonth={selectedEndMonth}
+          availableYears={availableYears}
+          onStartYearChange={setSelectedStartYear}
+          onEndYearChange={setSelectedEndYear}
+          onStartMonthChange={setSelectedStartMonth}
+          onEndMonthChange={setSelectedEndMonth}
+        />
+        <div className="text-sm text-muted-foreground">
+          {isLoading ? "Loading..." : `${leaderboard.length.toLocaleString()} salespersons found`}
         </div>
       </div>
 
-      <LeaderboardTable data={tableData} dateRange={formatDateRange()} isLoading={isLoading} />
+      <LeaderboardTable data={tableData} dateRange={formatDateRange()} />
     </div>
   );
 }
-
